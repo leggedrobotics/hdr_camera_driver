@@ -16,6 +16,11 @@
 
 #include <sensor_msgs/image_encodings.h>
 
+#include <iostream>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
+#include <image_transport/image_transport.h>
+
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -53,14 +58,14 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
     ROS_WARN("Invalid publish_rate = 0. Use default value -1 instead");
     publish_rate_ = -1.0;
   }
-  // if(publish_rate_ > 0){
-  //   const auto publish_period = ros::Duration(publish_rate_);
-  //   image_pub_timer_ = node.createTimer(publish_period, &V4L2Camera::publishTimer, this);
-  //   publish_next_frame_ = false;
-  // }
-  // else{
-  //   publish_next_frame_ = true;
-  // }
+  if(publish_rate_ > 0){
+    const auto publish_period = ros::Duration(1.0 /publish_rate_);
+    image_pub_timer_ = node.createTimer(publish_period, &V4L2Camera::publishTimer, this);
+    publish_next_frame_ = false;
+  }
+  else{
+    publish_next_frame_ = true;
+  }
   if (use_image_transport_) {
     camera_transport_pub_ = image_transport_.advertiseCamera("image_raw", 10);
   } else {
@@ -443,27 +448,15 @@ static void yuyv2rgb(unsigned char const * YUV, unsigned char * RGB, int NumPixe
 
 sensor_msgs::ImagePtr V4L2Camera::convert(sensor_msgs::Image& img)
 {
-  // TODO(sander): temporary until cv_bridge and image_proc are available in ROS 2
-  if (img.encoding == sensor_msgs::image_encodings::YUV422 &&
-    output_encoding_ == sensor_msgs::image_encodings::RGB8)
-  {
-    auto outImg = boost::make_shared<sensor_msgs::Image>();
-    outImg->width = img.width;
-    outImg->height = img.height;
-    outImg->step = img.width * 3;
-    outImg->encoding = output_encoding_;
-    outImg->data.resize(outImg->height * outImg->step);
-    for (auto i = 0u; i < outImg->height; ++i) {
-      yuyv2rgb(
-        img.data.data() + i * img.step, outImg->data.data() + i * outImg->step,
-        outImg->width);
-    }
-    return outImg;
-  } else {
-    ROS_WARN_ONCE(
-      "Conversion not supported yet: %s -> %s", img.encoding.c_str(), output_encoding_.c_str());
-    return nullptr;
-  }
+  cv_bridge::CvImagePtr cv_ptr;
+  cv_ptr = cv_bridge::toCvCopy(img, output_encoding_);
+
+  sensor_msgs::ImagePtr outImg = cv_ptr->toImageMsg();
+  outImg->width = img.width;
+  outImg->height = img.height;
+  outImg->step = img.width * 3;
+  outImg->encoding = output_encoding_;
+  return outImg;
 }
 
 #ifdef ENABLE_CUDA
@@ -539,7 +532,7 @@ sensor_msgs::ImagePtr V4L2Camera::convertOnGpu(sensor_msgs::Image& img)
 }
 #endif
 
-void V4L2Camera::publishTimer()
+void V4L2Camera::publishTimer(const ros::TimerEvent& event)
 {
   this->publish_next_frame_=true;
 }

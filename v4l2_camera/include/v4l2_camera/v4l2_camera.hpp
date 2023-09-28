@@ -137,7 +137,7 @@ private:
   bool requestTimePerFrame(TimePerFrame const & tpf);
 
 
-  void publishTimer();
+  void publishTimer(const ros::TimerEvent& event);
 
 
   bool checkCameraInfo(

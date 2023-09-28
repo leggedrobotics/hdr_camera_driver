@@ -23,7 +23,11 @@ find_package(catkin REQUIRED COMPONENTS
   pluginlib
   roscpp
   sensor_msgs
+  cv_bridge
 )
+
+find_package (OpenCV 4.0.0 REQUIRED)
+include_directories ("/usr/include/opencv4/")
 
 catkin_package(
   INCLUDE_DIRS
@@ -51,7 +55,10 @@ include_directories(
 
 find_package(CUDA)
 
-if (CUDA_FOUND)
+# TODO: fix this
+# (I put false, because else it wants to use cuda on the opc.)
+#if (CUDA_FOUND)
+if (false)
   message(STATUS "CUDA Support is enabled in ${PROJECT_NAME}")
   cuda_add_library(v4l2_camera
     src/v4l2_camera.cpp
