@@ -55,10 +55,7 @@ include_directories(
 
 find_package(CUDA)
 
-# TODO: fix this
-# (I put false, because else it wants to use cuda on the opc.)
-#if (CUDA_FOUND)
-if (false)
+if (CUDA_FOUND)
   message(STATUS "CUDA Support is enabled in ${PROJECT_NAME}")
   cuda_add_library(v4l2_camera
     src/v4l2_camera.cpp
