@@ -42,6 +42,46 @@ using namespace std::chrono_literals;
 
 namespace v4l2_camera
 {
+
+  void V4L2Camera::getImage(const std_msgs::Time::ConstPtr& msg)
+  {
+    ROS_DEBUG("Capture...");
+    auto img = camera_->capture();
+
+    while (img == nullptr) {
+      // Failed capturing image, assume it is temporarily and continue a bit later
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      auto img = camera_->capture();
+    }
+    if (img->encoding != output_encoding_) {
+#ifdef ENABLE_CUDA
+      img = convertOnGpu(*img);
+#else
+      img = convert(*img);
+#endif
+    }
+    
+    img->header.stamp = msg->data;
+    img->header.frame_id = camera_frame_id_;
+    
+    auto ci = std::make_unique<sensor_msgs::CameraInfo>(cinfo_->getCameraInfo());
+    if (!checkCameraInfo(*img, *ci)) {
+      *ci = sensor_msgs::CameraInfo{};
+      ci->height = img->height;
+      ci->width = img->width;
+    }
+    
+    ci->header.stamp = msg->data;
+    ci->header.frame_id = camera_frame_id_;
+
+    if (use_image_transport_) {
+      camera_transport_pub_.publish(*img, *ci);
+    } else {
+      image_pub_.publish(*img);
+      info_pub_.publish(*ci);
+    }
+  }
+
 V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   : image_transport_(private_nh),
     node(node),
@@ -95,53 +135,8 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
     return;
   }
 
-  // Start capture thread
-  capture_thread_ = std::thread{
-    [this]() -> void {
-      while (ros::ok() && !canceled_.load()) {
-        ROS_DEBUG("Capture...");
-        auto img = camera_->capture();
-
-        if (img == nullptr) {
-          // Failed capturing image, assume it is temporarily and continue a bit later
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
-          continue;
-        }
-        if(publish_next_frame_ == false){
-          continue;
-        }
-
-        auto stamp = img->header.stamp;
-        if (img->encoding != output_encoding_) {
-#ifdef ENABLE_CUDA
-          img = convertOnGpu(*img);
-#else
-          img = convert(*img);
-#endif
-        }
-        img->header.stamp = stamp;
-        img->header.frame_id = camera_frame_id_;
-
-        auto ci = std::make_unique<sensor_msgs::CameraInfo>(cinfo_->getCameraInfo());
-        if (!checkCameraInfo(*img, *ci)) {
-          *ci = sensor_msgs::CameraInfo{};
-          ci->height = img->height;
-          ci->width = img->width;
-        }
-
-        ci->header.stamp = stamp;
-        ci->header.frame_id = camera_frame_id_;
-        publish_next_frame_ = publish_rate_ < 0;
-
-        if (use_image_transport_) {
-          camera_transport_pub_.publish(*img, *ci);
-        } else {
-          image_pub_.publish(*img);
-          info_pub_.publish(*ci);
-        }
-      }
-    }
-  };
+  // Setup subscriber to get timestamps from rpi
+  ros::Subscriber sub = node.subscribe("timestamps", 100, &V4L2Camera::getImage, this);
 }
 
 void V4L2Camera::createParameters()

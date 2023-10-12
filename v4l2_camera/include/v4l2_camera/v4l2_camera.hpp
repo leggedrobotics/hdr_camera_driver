@@ -24,6 +24,7 @@
 
 #include <ostream>
 #include <ros/ros.h>
+#include "std_msgs/Time.h"
 
 #include <memory>
 #include <string>
@@ -78,7 +79,7 @@ class V4L2Camera
 public:
   explicit V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh);
   virtual ~V4L2Camera();
-
+  
 private:
   ros::NodeHandle node;
   ros::NodeHandle private_nh;
@@ -139,6 +140,7 @@ private:
 
   void publishTimer(const ros::TimerEvent& event);
 
+  void getImage(const std_msgs::Time::ConstPtr& msg);
 
   bool checkCameraInfo(
     sensor_msgs::Image const & img,
