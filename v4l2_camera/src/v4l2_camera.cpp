@@ -45,7 +45,7 @@ namespace v4l2_camera
 
   void V4L2Camera::getImage(const std_msgs::Time::ConstPtr& msg)
   {
-    ROS_DEBUG("Capture...");
+    ROS_DEBUG("Capture Image");
     auto img = camera_->capture();
 
     while (img == nullptr) {
@@ -136,7 +136,9 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   }
 
   // Setup subscriber to get timestamps from rpi
-  ros::Subscriber sub = node.subscribe("timestamps", 100, &V4L2Camera::getImage, this);
+  ROS_INFO("Start subscribing");
+  trigger_sub = node.subscribe("camera_trigger_timestamps", 100, &V4L2Camera::getImage, this);
+  ros::spin();
 }
 
 void V4L2Camera::createParameters()

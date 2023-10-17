@@ -87,6 +87,7 @@ private:
   std::string device;
   bool use_v4l2_buffer_timestamps;
   int timestamp_offset;
+  ros::Subscriber trigger_sub;
 
   using ImageSize = std::vector<int64_t>;
   using TimePerFrame = std::vector<int64_t>;
