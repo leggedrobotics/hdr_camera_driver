@@ -46,7 +46,8 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   : image_transport_(private_nh),
     node(node),
     private_nh(private_nh),
-    canceled_{false}
+    canceled_{false},
+    capture_images_{false}
 {
   private_nh.getParam("video_device", device);
   private_nh.getParam("use_image_transport", use_image_transport_);
@@ -58,6 +59,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
     info_pub_ = node.advertise<sensor_msgs::CameraInfo>("camera_info", 10);
   }
 
+  ros::ServiceServer service = node.advertiseService("start_driver", &V4L2Camera::SetCaptureImages, this);
   camera_ = std::make_shared<V4l2CameraDevice>(device);
   
   if (!camera_->open()) {
@@ -82,6 +84,10 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   capture_thread_ = std::thread{
     [this]() -> void {
       while (ros::ok() && !canceled_.load()) {
+        if (!capture_images_) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          continue;
+        }
         ROS_DEBUG("Capture...");
         auto img = camera_->capture();
 
@@ -119,7 +125,13 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
 
   ROS_INFO("Start subscribing");
   trigger_sub = node.subscribe("camera_trigger_timestamps", 10, &V4L2Camera::consumeTimestamp, this);
-  ros::spin();
+}
+
+bool V4L2Camera::SetCaptureImages(v4l2_camera::capture_images::Request& req, v4l2_camera::capture_images::Response& res)
+{
+  capture_images_ = req.capture_images;
+  res.success = true;
+  return true;
 }
 
 void V4L2Camera::consumeTimestamp(const std_msgs::Time::ConstPtr& msg)
@@ -149,7 +161,7 @@ void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs
   }
 }
 
-void V4L2Camera::publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::Time::ConstPtr& time)
+void V4L2Camera::publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time)
 {
   img->header.stamp = time->data;
   ci->header.stamp = time->data;
