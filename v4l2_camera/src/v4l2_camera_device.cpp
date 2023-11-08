@@ -34,8 +34,7 @@
 using v4l2_camera::V4l2CameraDevice;
 using sensor_msgs::Image;
 
-V4l2CameraDevice::V4l2CameraDevice(std::string device, bool use_v4l2_buffer_timestamps, ros::Duration timestamp_offset_duration)
-: device_{device}, use_v4l2_buffer_timestamps_{use_v4l2_buffer_timestamps}, timestamp_offset_{timestamp_offset_duration}
+V4l2CameraDevice::V4l2CameraDevice(std::string device) : device_{device}
 {
 }
 
@@ -232,16 +231,7 @@ sensor_msgs::ImagePtr V4l2CameraDevice::capture()
     return nullptr;
   }
 
-   if (use_v4l2_buffer_timestamps_) {
-     buf_stamp = ros::Time(static_cast<double>(buf.timestamp.tv_sec)
-                              + static_cast<double>(buf.timestamp.tv_usec) * 1e-6
-                              + static_cast<double>(getTimeOffset() - tsc_offset_) * 1e-9);
-
-   }
-   else {
-     buf_stamp = ros::Time::now();
-   }
-
+  buf_stamp = ros::Time::now();
   buf_stamp = buf_stamp + timestamp_offset_;
 
   // Requeue buffer to be reused for new captures

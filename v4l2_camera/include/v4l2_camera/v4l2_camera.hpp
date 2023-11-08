@@ -82,7 +82,6 @@ public:
 private:
   ros::NodeHandle node;
   ros::NodeHandle private_nh;
-  double publish_rate_;
   std::string device;
   bool use_v4l2_buffer_timestamps;
   int timestamp_offset;
@@ -135,10 +134,6 @@ private:
   bool requestPixelFormat(std::string const & fourcc);
   bool requestImageSize(std::vector<int64_t> const & size);
   bool requestTimePerFrame(TimePerFrame const & tpf);
-
-
-  void publishTimer(const ros::TimerEvent& event);
-
 
   bool checkCameraInfo(
     sensor_msgs::Image const & img,
