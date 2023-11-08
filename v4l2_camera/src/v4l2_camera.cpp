@@ -102,7 +102,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         img->header.stamp = stamp;
         img->header.frame_id = camera_frame_id_;
 
-        auto ci = std::make_unique<sensor_msgs::CameraInfo>(cinfo_->getCameraInfo());
+        auto ci = boost::make_shared<sensor_msgs::CameraInfo>(cinfo_->getCameraInfo());
         if (!checkCameraInfo(*img, *ci)) {
           *ci = sensor_msgs::CameraInfo{};
           ci->height = img->height;
@@ -112,15 +112,54 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         ci->header.stamp = stamp;
         ci->header.frame_id = camera_frame_id_;
 
-        if (use_image_transport_) {
-          camera_transport_pub_.publish(*img, *ci);
-        } else {
-          image_pub_.publish(*img);
-          info_pub_.publish(*ci);
-        }
+        this->consumeImage(img, ci);
       }
     }
   };
+
+  ROS_INFO("Start subscribing");
+  trigger_sub = node.subscribe("camera_trigger_timestamps", 10, &V4L2Camera::consumeTimestamp, this);
+  ros::spin();
+}
+
+void V4L2Camera::consumeTimestamp(const std_msgs::Time::ConstPtr& msg)
+{
+  const std::lock_guard<std::mutex> lock(queue_mutex);
+  if(image_queue.empty()){
+    timestamp_queue.push(msg);
+  }
+  else{
+    auto img = image_queue.front();
+    image_queue.pop();
+    publishImage(img.first, img.second, msg);
+    
+  }
+}
+
+void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci)
+{
+  const std::lock_guard<std::mutex> lock(queue_mutex);
+  if(timestamp_queue.empty()){
+    image_queue.push(std::make_pair(img, ci));
+  }
+  else{
+    auto time = timestamp_queue.front();
+    timestamp_queue.pop();
+    publishImage(img, ci, time);
+  }
+}
+
+void V4L2Camera::publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::Time::ConstPtr& time)
+{
+  img->header.stamp = time->data;
+  ci->header.stamp = time->data;
+
+  if (use_image_transport_) {
+    camera_transport_pub_.publish(*img, *ci);
+  } else {
+    image_pub_.publish(*img);
+    info_pub_.publish(*ci);
+  }
 }
 
 void V4L2Camera::createParameters()

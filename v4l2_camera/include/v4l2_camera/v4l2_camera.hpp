@@ -24,12 +24,16 @@
 
 #include <ostream>
 #include <ros/ros.h>
+#include <std_msgs/Time.h>
 
 #include <memory>
 #include <string>
 #include <map>
 #include <vector>
 #include <thread>
+#include <queue>
+#include <deque>
+#include <mutex>
 
 #include "v4l2_camera/visibility_control.h"
 
@@ -85,6 +89,14 @@ private:
   std::string device;
   bool use_v4l2_buffer_timestamps;
   int timestamp_offset;
+  std::mutex queue_mutex;
+
+  std::queue<std::pair<sensor_msgs::ImagePtr, sensor_msgs::CameraInfoPtr>> image_queue;
+  std::queue<std_msgs::TimeConstPtr> timestamp_queue;
+  ros::Subscriber trigger_sub;
+  void consumeTimestamp(const std_msgs::Time::ConstPtr& msg);
+  void consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci);
+  void publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time);
 
   using ImageSize = std::vector<int64_t>;
   using TimePerFrame = std::vector<int64_t>;
