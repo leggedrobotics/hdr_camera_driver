@@ -130,6 +130,10 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
 bool V4L2Camera::SetCaptureImages(v4l2_camera::capture_images::Request& req, v4l2_camera::capture_images::Response& res)
 {
   capture_images_ = req.capture_images;
+
+  // clear image buffer
+  camera_->capture();
+
   res.success = true;
   return true;
 }
