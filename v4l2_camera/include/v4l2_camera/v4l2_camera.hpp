@@ -36,7 +36,7 @@
 #include <mutex>
 
 #include "v4l2_camera/visibility_control.h"
-#include "v4l2_camera/capture_images.h"
+#include "start_capture/capture_images.h"
 
 #ifdef ENABLE_CUDA
 #include <nppdefs.h>
@@ -99,7 +99,7 @@ private:
   void consumeTimestamp(const std_msgs::Time::ConstPtr& msg);
   void consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci);
   void publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time);
-  bool SetCaptureImages(v4l2_camera::capture_images::Request& req, v4l2_camera::capture_images::Response& res);
+  bool SetCaptureImages(start_capture::capture_images::Request& req, start_capture::capture_images::Response& res);
   bool capture_images_;
 
   using ImageSize = std::vector<int64_t>;

@@ -24,17 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
   cv_bridge
-  message_generation
-)
-
-add_service_files(
-  FILES
-  capture_images.srv
-)
-
-generate_messages(
-  DEPENDENCIES
-  std_msgs
+  start_capture
 )
 
 find_package (OpenCV 4.0.0 REQUIRED)

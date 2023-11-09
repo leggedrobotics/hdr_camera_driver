@@ -127,7 +127,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   trigger_sub = node.subscribe("camera_trigger_timestamps", 10, &V4L2Camera::consumeTimestamp, this);
 }
 
-bool V4L2Camera::SetCaptureImages(v4l2_camera::capture_images::Request& req, v4l2_camera::capture_images::Response& res)
+bool V4L2Camera::SetCaptureImages(start_capture::capture_images::Request& req, start_capture::capture_images::Response& res)
 {
   capture_images_ = req.capture_images;
 
