@@ -131,8 +131,12 @@ bool V4L2Camera::SetCaptureImages(v4l2_camera::capture_images::Request& req, v4l
 {
   capture_images_ = req.capture_images;
 
-  // clear image buffer
+  // clear image buffer and the queues
   camera_->capture();
+  std::queue<std::pair<sensor_msgs::ImagePtr, sensor_msgs::CameraInfoPtr>> empty_image_queue;
+  std::swap(image_queue, empty_image_queue);
+  std::queue<std_msgs::TimeConstPtr> empty_timestamp_queue;
+  std::swap(timestamp_queue, empty_timestamp_queue); 
 
   res.success = true;
   return true;
