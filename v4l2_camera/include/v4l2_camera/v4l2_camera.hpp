@@ -91,6 +91,7 @@ private:
   bool use_v4l2_buffer_timestamps;
   int timestamp_offset;
   std::mutex queue_mutex;
+  ros::ServiceServer service_;
 
   std::queue<std::pair<sensor_msgs::ImagePtr, sensor_msgs::CameraInfoPtr>> image_queue;
   std::queue<std_msgs::TimeConstPtr> timestamp_queue;

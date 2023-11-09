@@ -59,7 +59,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
     info_pub_ = node.advertise<sensor_msgs::CameraInfo>("camera_info", 10);
   }
 
-  ros::ServiceServer service = node.advertiseService("start_driver", &V4L2Camera::SetCaptureImages, this);
+  service_ = node.advertiseService("capture_images", &V4L2Camera::SetCaptureImages, this);
   camera_ = std::make_shared<V4l2CameraDevice>(device);
   
   if (!camera_->open()) {
