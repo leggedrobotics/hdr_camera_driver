@@ -158,6 +158,7 @@ void V4L2Camera::consumeTimestamp(const std_msgs::Time::ConstPtr& msg)
 
 void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci)
 {
+  std::cout << "image consumed" << std::endl;
   const std::lock_guard<std::mutex> lock(queue_mutex);
   if(timestamp_queue.empty()){
     image_queue.push(std::make_pair(img, ci));
