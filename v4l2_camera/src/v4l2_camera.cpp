@@ -85,7 +85,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
     [this]() -> void {
       while (ros::ok() && !canceled_.load()) {
         if (!capture_images_) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
           continue;
         }
         ROS_DEBUG("Capture...");
@@ -93,7 +93,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
 
         if (img == nullptr) {
           // Failed capturing image, assume it is temporarily and continue a bit later
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
           continue;
         }
 
@@ -129,7 +129,6 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
 
 bool V4L2Camera::SetCaptureImages(start_capture::capture_images::Request& req, start_capture::capture_images::Response& res)
 {
-  std::cout << "set_capture_image (service called)" << std::endl;
   capture_images_ = req.capture_images;
 
   // clear image buffer and the queues
@@ -145,7 +144,6 @@ bool V4L2Camera::SetCaptureImages(start_capture::capture_images::Request& req, s
 
 void V4L2Camera::consumeTimestamp(const std_msgs::Time::ConstPtr& msg)
 {
-  std::cout << "consume Timestamp" << std::endl;
   const std::lock_guard<std::mutex> lock(queue_mutex);
   if(image_queue.empty()){
     timestamp_queue.push(msg);
@@ -153,14 +151,13 @@ void V4L2Camera::consumeTimestamp(const std_msgs::Time::ConstPtr& msg)
   else{
     auto img = image_queue.front();
     image_queue.pop();
-    publishImage(img.first, img.second, msg);
-    
+    publishImage(img.first, img.second, msg);  
   }
+  //std::cout << "consumeTime: timestamps:" << timestamp_queue.size() << "  images:" << image_queue.size() << std::endl;
 }
 
 void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci)
 {
-  std::cout << "consume image" << std::endl;
   const std::lock_guard<std::mutex> lock(queue_mutex);
   if(timestamp_queue.empty()){
     image_queue.push(std::make_pair(img, ci));
@@ -170,6 +167,7 @@ void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs
     timestamp_queue.pop();
     publishImage(img, ci, time);
   }
+  //std::cout << "consumeImg: timestamps:" << timestamp_queue.size() << "  images:" << image_queue.size() << std::endl;
 }
 
 void V4L2Camera::publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time)
@@ -183,6 +181,7 @@ void V4L2Camera::publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs
     image_pub_.publish(*img);
     info_pub_.publish(*ci);
   }
+  ROS_INFO("images | timestamps: (%ld | %ld)", image_queue.size(), timestamp_queue.size());
 }
 
 void V4L2Camera::createParameters()
