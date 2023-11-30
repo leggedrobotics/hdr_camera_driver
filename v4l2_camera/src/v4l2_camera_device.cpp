@@ -233,6 +233,7 @@ sensor_msgs::ImagePtr V4l2CameraDevice::capture()
 
   buf_stamp = ros::Time::now();
   buf_stamp = buf_stamp + timestamp_offset_;
+  std::cout << buf.sequence << " - " << buf.timestamp.tv_sec << ":" << buf.timestamp.tv_usec << std::endl;
 
   // Requeue buffer to be reused for new captures
   if (-1 == ioctl(fd_, VIDIOC_QBUF, &buf)) {

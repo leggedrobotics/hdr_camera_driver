@@ -153,7 +153,6 @@ void V4L2Camera::consumeTimestamp(const std_msgs::Time::ConstPtr& msg)
     image_queue.pop();
     publishImage(img.first, img.second, msg);  
   }
-  //std::cout << "consumeTime: timestamps:" << timestamp_queue.size() << "  images:" << image_queue.size() << std::endl;
 }
 
 void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci)
@@ -167,7 +166,6 @@ void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs
     timestamp_queue.pop();
     publishImage(img, ci, time);
   }
-  //std::cout << "consumeImg: timestamps:" << timestamp_queue.size() << "  images:" << image_queue.size() << std::endl;
 }
 
 void V4L2Camera::publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time)

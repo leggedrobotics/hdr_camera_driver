@@ -89,6 +89,7 @@ private:
   ros::NodeHandle private_nh;
   std::string device;
   bool use_v4l2_buffer_timestamps;
+  bool use_triggering;
   int timestamp_offset;
   std::mutex queue_mutex;
   ros::ServiceServer service_;
