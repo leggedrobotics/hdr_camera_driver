@@ -86,6 +86,13 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
       while (ros::ok() && !canceled_.load()) {
         if (!capture_images_) {
           std::this_thread::sleep_for(std::chrono::milliseconds(5));
+          auto img = camera_->capture();
+          if(img == nullptr){
+            ROS_INFO("no image there");
+          }else{
+            ROS_INFO("image would be available");
+          }
+          ros::spinOnce();
           continue;
         }
         ROS_DEBUG("Capture...");
@@ -118,6 +125,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         ci->header.stamp = stamp;
         ci->header.frame_id = camera_frame_id_;
 
+        ros::spinOnce();
         this->consumeImage(img, ci);
       }
     }
@@ -132,11 +140,17 @@ bool V4L2Camera::SetCaptureImages(start_capture::capture_images::Request& req, s
   capture_images_ = req.capture_images;
 
   // clear image buffer and the queues
-  camera_->capture();
+  auto img = camera_->capture();
   std::queue<std::pair<sensor_msgs::ImagePtr, sensor_msgs::CameraInfoPtr>> empty_image_queue;
   std::swap(image_queue, empty_image_queue);
   std::queue<std_msgs::TimeConstPtr> empty_timestamp_queue;
   std::swap(timestamp_queue, empty_timestamp_queue); 
+  ROS_INFO("Start Capturing!");
+  if (image_queue.empty() && timestamp_queue.empty()){
+    ROS_INFO("Queues are empty!");
+  }else{
+    ROS_INFO("Queues not empty! :(");
+  }
 
   res.success = true;
   return true;
