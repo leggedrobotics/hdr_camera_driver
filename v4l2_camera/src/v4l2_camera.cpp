@@ -87,7 +87,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         if (!capture_images_) {
           std::this_thread::sleep_for(std::chrono::milliseconds(5));
           auto img = camera_->capture();
-          if(img == nullptr){
+          if(!img){
             ROS_INFO("no image there");
           }else{
             ROS_INFO("image would be available");
@@ -114,7 +114,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         }
         img->header.stamp = stamp;
         img->header.frame_id = camera_frame_id_;
-
+        
         auto ci = boost::make_shared<sensor_msgs::CameraInfo>(cinfo_->getCameraInfo());
         if (!checkCameraInfo(*img, *ci)) {
           *ci = sensor_msgs::CameraInfo{};
@@ -125,8 +125,8 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         ci->header.stamp = stamp;
         ci->header.frame_id = camera_frame_id_;
 
-        ros::spinOnce();
         this->consumeImage(img, ci);
+        ros::spinOnce();
       }
     }
   };
