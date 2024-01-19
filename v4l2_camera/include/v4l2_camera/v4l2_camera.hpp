@@ -101,7 +101,7 @@ private:
   void consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci);
   void publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time);
   bool SetCaptureImages(start_capture::capture_images::Request& req, start_capture::capture_images::Response& res);
-  bool capture_images_;
+  std::atomic<bool> capture_images_;
 
   using ImageSize = std::vector<int64_t>;
   using TimePerFrame = std::vector<int64_t>;
