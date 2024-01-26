@@ -104,6 +104,9 @@ private:
   ros::Duration timestamp_offset_;
   uint64_t tsc_offset_;
 
+  bool images_triggered_;
+  unsigned int previous_sequence_;
+
   v4l2_capability capabilities_;
   v4l2_captureparm capture_parm_;
 

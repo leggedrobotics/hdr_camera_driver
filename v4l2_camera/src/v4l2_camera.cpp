@@ -85,13 +85,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
     [this]() -> void {
       while (ros::ok() && !canceled_.load()) {
         if (!capture_images_) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(5));
-          auto img = camera_->capture();
-          if(!img){
-            ROS_INFO("no image there");
-          }else{
-            ROS_INFO("image would be available");
-          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(20));
           ros::spinOnce();
           continue;
         }
@@ -139,8 +133,7 @@ bool V4L2Camera::SetCaptureImages(start_capture::capture_images::Request& req, s
 {
   capture_images_ = req.capture_images;
 
-  // clear image buffer and the queues
-  auto img = camera_->capture();
+  // clear the queues
   std::queue<std::pair<sensor_msgs::ImagePtr, sensor_msgs::CameraInfoPtr>> empty_image_queue;
   std::swap(image_queue, empty_image_queue);
   std::queue<std_msgs::TimeConstPtr> empty_timestamp_queue;
