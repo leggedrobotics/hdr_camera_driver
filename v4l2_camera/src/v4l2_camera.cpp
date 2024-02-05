@@ -53,6 +53,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   private_nh.getParam("use_v4l2_buffer_timestamps", use_v4l2_buffer_timestamps);
   private_nh.getParam("timestamp_offset", timestamp_offset);
   private_nh.getParam("use_image_transport", use_image_transport_);
+  private_nh.getParam("flip_image", flip_image_);
 
   if(std::abs(publish_rate_) < std::numeric_limits<double>::epsilon()){
     ROS_WARN("Invalid publish_rate = 0. Use default value -1 instead");

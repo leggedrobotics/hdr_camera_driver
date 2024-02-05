@@ -123,6 +123,7 @@ private:
 
   bool publish_next_frame_;
   bool use_image_transport_;
+  bool flip_image_;
 
 #ifdef ENABLE_CUDA
   // Memory region to communicate with GPU
