@@ -123,7 +123,7 @@ private:
 
   bool publish_next_frame_;
   bool use_image_transport_;
-  bool flip_image_;
+  bool rotate_image_;
 
 #ifdef ENABLE_CUDA
   // Memory region to communicate with GPU
@@ -145,6 +145,7 @@ private:
     sensor_msgs::Image const & img,
     sensor_msgs::CameraInfo const & ci);
 sensor_msgs::ImagePtr convert(sensor_msgs::Image& img);
+sensor_msgs::ImagePtr convertAndRotateImage(sensor_msgs::Image& img);
 #ifdef ENABLE_CUDA
 sensor_msgs::ImagePtr convertOnGpu(sensor_msgs::Image& img);
 #endif

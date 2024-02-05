@@ -53,7 +53,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   private_nh.getParam("use_v4l2_buffer_timestamps", use_v4l2_buffer_timestamps);
   private_nh.getParam("timestamp_offset", timestamp_offset);
   private_nh.getParam("use_image_transport", use_image_transport_);
-  private_nh.getParam("flip_image", flip_image_);
+  private_nh.getParam("rotate_image", rotate_image_);
 
   if(std::abs(publish_rate_) < std::numeric_limits<double>::epsilon()){
     ROS_WARN("Invalid publish_rate = 0. Use default value -1 instead");
@@ -113,7 +113,11 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         }
 
         auto stamp = img->header.stamp;
-        if (img->encoding != output_encoding_) {
+
+        if (rotate_image_) {
+          img = convertAndRotateImage(*img);
+        }
+        else if (img->encoding != output_encoding_) {
 #ifdef ENABLE_CUDA
           img = convertOnGpu(*img);
 #else
@@ -452,6 +456,20 @@ sensor_msgs::ImagePtr V4L2Camera::convert(sensor_msgs::Image& img)
   cv_bridge::CvImagePtr cv_ptr;
   cv_ptr = cv_bridge::toCvCopy(img, output_encoding_);
 
+  sensor_msgs::ImagePtr outImg = cv_ptr->toImageMsg();
+  outImg->width = img.width;
+  outImg->height = img.height;
+  outImg->step = img.width * 3;
+  outImg->encoding = output_encoding_;
+  return outImg;
+}
+
+sensor_msgs::ImagePtr V4L2Camera::convertAndRotateImage(sensor_msgs::Image& img)
+{
+  cv_bridge::CvImagePtr cv_ptr;
+  cv_ptr = cv_bridge::toCvCopy(img, output_encoding_);
+
+  rotate(cv_ptr->image, cv_ptr->image, cv::ROTATE_180);
   sensor_msgs::ImagePtr outImg = cv_ptr->toImageMsg();
   outImg->width = img.width;
   outImg->height = img.height;
