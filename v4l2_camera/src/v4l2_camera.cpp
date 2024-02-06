@@ -54,6 +54,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   private_nh.getParam("timestamp_offset", timestamp_offset);
   private_nh.getParam("use_image_transport", use_image_transport_);
   private_nh.getParam("rotate_image", rotate_image_);
+  private_nh.getParam("rotate_calibration", rotate_calibration_);
 
   if(std::abs(publish_rate_) < std::numeric_limits<double>::epsilon()){
     ROS_WARN("Invalid publish_rate = 0. Use default value -1 instead");
@@ -132,6 +133,14 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
           *ci = sensor_msgs::CameraInfo{};
           ci->height = img->height;
           ci->width = img->width;
+        }
+
+        if (rotate_calibration_) {
+          // change cx and cy of intrinsics matrix when image is rotated
+          ci->K[2] = ci->width - ci->K[2];
+          ci->K[5] = ci->height - ci->K[5];
+          ci->P[2] = ci->width - ci->P[2];
+          ci->P[6] = ci->height - ci->P[6];
         }
 
         ci->header.stamp = stamp;
