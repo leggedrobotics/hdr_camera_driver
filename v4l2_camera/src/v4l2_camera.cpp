@@ -53,6 +53,8 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   private_nh.getParam("use_v4l2_buffer_timestamps", use_v4l2_buffer_timestamps);
   private_nh.getParam("timestamp_offset", timestamp_offset);
   private_nh.getParam("use_image_transport", use_image_transport_);
+  private_nh.getParam("rotate_image", rotate_image_);
+  private_nh.getParam("rotate_calibration", rotate_calibration_);
 
   if(std::abs(publish_rate_) < std::numeric_limits<double>::epsilon()){
     ROS_WARN("Invalid publish_rate = 0. Use default value -1 instead");
@@ -112,7 +114,11 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         }
 
         auto stamp = img->header.stamp;
-        if (img->encoding != output_encoding_) {
+
+        if (rotate_image_) {
+          img = convertAndRotateImage(*img);
+        }
+        else if (img->encoding != output_encoding_) {
 #ifdef ENABLE_CUDA
           img = convertOnGpu(*img);
 #else
@@ -127,6 +133,14 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
           *ci = sensor_msgs::CameraInfo{};
           ci->height = img->height;
           ci->width = img->width;
+        }
+
+        if (rotate_calibration_) {
+          // change cx and cy of intrinsics matrix when image is rotated
+          ci->K[2] = ci->width - ci->K[2];
+          ci->K[5] = ci->height - ci->K[5];
+          ci->P[2] = ci->width - ci->P[2];
+          ci->P[6] = ci->height - ci->P[6];
         }
 
         ci->header.stamp = stamp;
@@ -451,6 +465,20 @@ sensor_msgs::ImagePtr V4L2Camera::convert(sensor_msgs::Image& img)
   cv_bridge::CvImagePtr cv_ptr;
   cv_ptr = cv_bridge::toCvCopy(img, output_encoding_);
 
+  sensor_msgs::ImagePtr outImg = cv_ptr->toImageMsg();
+  outImg->width = img.width;
+  outImg->height = img.height;
+  outImg->step = img.width * 3;
+  outImg->encoding = output_encoding_;
+  return outImg;
+}
+
+sensor_msgs::ImagePtr V4L2Camera::convertAndRotateImage(sensor_msgs::Image& img)
+{
+  cv_bridge::CvImagePtr cv_ptr;
+  cv_ptr = cv_bridge::toCvCopy(img, output_encoding_);
+
+  rotate(cv_ptr->image, cv_ptr->image, cv::ROTATE_180);
   sensor_msgs::ImagePtr outImg = cv_ptr->toImageMsg();
   outImg->width = img.width;
   outImg->height = img.height;
