@@ -250,9 +250,9 @@ sensor_msgs::ImagePtr V4l2CameraDevice::capture()
     // check if gap between current image number and previous image number
     if(current_sequence - previous_sequence_ > 10 ){
       images_triggered_ = true;
-      ROS_INFO("set images_triggered to true");
-    } else{
       previous_sequence_ = current_sequence;
+      ROS_INFO("10 sequence ids later than 0. Set images_triggered to true");
+    } else{
       ROS_INFO("prev: %u curr: %u subtraction: %u", previous_sequence_, current_sequence, current_sequence - previous_sequence_);
       return nullptr;
     }
