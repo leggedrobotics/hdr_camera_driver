@@ -126,7 +126,7 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   };
 
   ROS_INFO("Start subscribing");
-  trigger_sub = node.subscribe("camera_trigger_timestamps", 10, &V4L2Camera::consumeTimestamp, this);
+  trigger_sub = node.subscribe("hdr_camera_time_stamper/timestamps", 10, &V4L2Camera::consumeTimestamp, this);
 }
 
 bool V4L2Camera::SetCaptureImages(start_capture::capture_images::Request& req, start_capture::capture_images::Response& res)
