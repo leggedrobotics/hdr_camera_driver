@@ -34,8 +34,7 @@
 using v4l2_camera::V4l2CameraDevice;
 using sensor_msgs::Image;
 
-V4l2CameraDevice::V4l2CameraDevice(std::string device, bool use_v4l2_buffer_timestamps, ros::Duration timestamp_offset_duration)
-: device_{device}, use_v4l2_buffer_timestamps_{use_v4l2_buffer_timestamps}, timestamp_offset_{timestamp_offset_duration}
+V4l2CameraDevice::V4l2CameraDevice(std::string device) : device_{device}, images_triggered_{false}, previous_sequence_{0}
 {
 }
 
@@ -232,17 +231,10 @@ sensor_msgs::ImagePtr V4l2CameraDevice::capture()
     return nullptr;
   }
 
-   if (use_v4l2_buffer_timestamps_) {
-     buf_stamp = ros::Time(static_cast<double>(buf.timestamp.tv_sec)
-                              + static_cast<double>(buf.timestamp.tv_usec) * 1e-6
-                              + static_cast<double>(getTimeOffset() - tsc_offset_) * 1e-9);
-
-   }
-   else {
-     buf_stamp = ros::Time::now();
-   }
-
+  buf_stamp = ros::Time::now();
   buf_stamp = buf_stamp + timestamp_offset_;
+  std::cout << buf.sequence << " - " << buf.timestamp.tv_sec << ":" << buf.timestamp.tv_usec << std::endl;
+  unsigned int current_sequence = buf.sequence;
 
   // Requeue buffer to be reused for new captures
   if (-1 == ioctl(fd_, VIDIOC_QBUF, &buf)) {
@@ -252,6 +244,20 @@ sensor_msgs::ImagePtr V4l2CameraDevice::capture()
     return nullptr;
   }
 
+  // after triggering, some old images are still in the buffers, these need to be skipped
+  if (!images_triggered_) {
+    ROS_INFO("images not triggered");
+    // check if gap between current image number and previous image number
+    if(current_sequence - previous_sequence_ > 10 ){
+      images_triggered_ = true;
+      previous_sequence_ = current_sequence;
+      ROS_INFO("10 sequence ids later than 0. Set images_triggered to true");
+    } else{
+      ROS_INFO("prev: %u curr: %u subtraction: %u", previous_sequence_, current_sequence, current_sequence - previous_sequence_);
+      return nullptr;
+    }
+  }
+ 
   // Create image object
   auto img_ptr = boost::make_shared<sensor_msgs::Image>();
   img_ptr->header.stamp = buf_stamp;

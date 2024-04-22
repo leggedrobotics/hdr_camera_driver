@@ -24,14 +24,19 @@
 
 #include <ostream>
 #include <ros/ros.h>
+#include <std_msgs/Time.h>
 
 #include <memory>
 #include <string>
 #include <map>
 #include <vector>
 #include <thread>
+#include <queue>
+#include <deque>
+#include <mutex>
 
 #include "v4l2_camera/visibility_control.h"
+#include "start_capture/capture_images.h"
 
 #ifdef ENABLE_CUDA
 #include <nppdefs.h>
@@ -82,10 +87,21 @@ public:
 private:
   ros::NodeHandle node;
   ros::NodeHandle private_nh;
-  double publish_rate_;
   std::string device;
   bool use_v4l2_buffer_timestamps;
+  bool use_triggering;
   int timestamp_offset;
+  std::mutex queue_mutex;
+  ros::ServiceServer service_;
+
+  std::queue<std::pair<sensor_msgs::ImagePtr, sensor_msgs::CameraInfoPtr>> image_queue;
+  std::queue<std_msgs::TimeConstPtr> timestamp_queue;
+  ros::Subscriber trigger_sub;
+  void consumeTimestamp(const std_msgs::Time::ConstPtr& msg);
+  void consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci);
+  void publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time);
+  bool SetCaptureImages(start_capture::capture_images::Request& req, start_capture::capture_images::Response& res);
+  std::atomic<bool> capture_images_;
 
   using ImageSize = std::vector<int64_t>;
   using TimePerFrame = std::vector<int64_t>;
@@ -135,10 +151,6 @@ private:
   bool requestPixelFormat(std::string const & fourcc);
   bool requestImageSize(std::vector<int64_t> const & size);
   bool requestTimePerFrame(TimePerFrame const & tpf);
-
-
-  void publishTimer(const ros::TimerEvent& event);
-
 
   bool checkCameraInfo(
     sensor_msgs::Image const & img,

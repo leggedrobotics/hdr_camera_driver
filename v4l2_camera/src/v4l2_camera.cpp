@@ -46,26 +46,12 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   : image_transport_(private_nh),
     node(node),
     private_nh(private_nh),
-    canceled_{false}
+    canceled_{false},
+    capture_images_{false}
 {
-  private_nh.getParam("publish_rate", publish_rate_);
   private_nh.getParam("video_device", device);
-  private_nh.getParam("use_v4l2_buffer_timestamps", use_v4l2_buffer_timestamps);
-  private_nh.getParam("timestamp_offset", timestamp_offset);
   private_nh.getParam("use_image_transport", use_image_transport_);
 
-  if(std::abs(publish_rate_) < std::numeric_limits<double>::epsilon()){
-    ROS_WARN("Invalid publish_rate = 0. Use default value -1 instead");
-    publish_rate_ = -1.0;
-  }
-  if(publish_rate_ > 0){
-    const auto publish_period = ros::Duration(1.0 /publish_rate_);
-    image_pub_timer_ = node.createTimer(publish_period, &V4L2Camera::publishTimer, this);
-    publish_next_frame_ = false;
-  }
-  else{
-    publish_next_frame_ = true;
-  }
   if (use_image_transport_) {
     camera_transport_pub_ = image_transport_.advertiseCamera("image_raw", 10);
   } else {
@@ -73,9 +59,8 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
     info_pub_ = node.advertise<sensor_msgs::CameraInfo>("camera_info", 10);
   }
 
-  ros::Duration timestamp_offset_duration(0, timestamp_offset);
-
-  camera_ = std::make_shared<V4l2CameraDevice>(device, use_v4l2_buffer_timestamps, timestamp_offset_duration);
+  service_ = node.advertiseService("capture_images", &V4L2Camera::SetCaptureImages, this);
+  camera_ = std::make_shared<V4l2CameraDevice>(device);
   
   if (!camera_->open()) {
     return;
@@ -99,15 +84,17 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   capture_thread_ = std::thread{
     [this]() -> void {
       while (ros::ok() && !canceled_.load()) {
+        if (!capture_images_) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(20));
+          ros::spinOnce();
+          continue;
+        }
         ROS_DEBUG("Capture...");
         auto img = camera_->capture();
 
         if (img == nullptr) {
           // Failed capturing image, assume it is temporarily and continue a bit later
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
-          continue;
-        }
-        if(publish_next_frame_ == false){
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
           continue;
         }
 
@@ -121,8 +108,8 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
         }
         img->header.stamp = stamp;
         img->header.frame_id = camera_frame_id_;
-
-        auto ci = std::make_unique<sensor_msgs::CameraInfo>(cinfo_->getCameraInfo());
+        
+        auto ci = boost::make_shared<sensor_msgs::CameraInfo>(cinfo_->getCameraInfo());
         if (!checkCameraInfo(*img, *ci)) {
           *ci = sensor_msgs::CameraInfo{};
           ci->height = img->height;
@@ -131,17 +118,75 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
 
         ci->header.stamp = stamp;
         ci->header.frame_id = camera_frame_id_;
-        publish_next_frame_ = publish_rate_ < 0;
 
-        if (use_image_transport_) {
-          camera_transport_pub_.publish(*img, *ci);
-        } else {
-          image_pub_.publish(*img);
-          info_pub_.publish(*ci);
-        }
+        this->consumeImage(img, ci);
+        ros::spinOnce();
       }
     }
   };
+
+  ROS_INFO("Start subscribing");
+  trigger_sub = node.subscribe("camera_trigger_timestamps", 10, &V4L2Camera::consumeTimestamp, this);
+}
+
+bool V4L2Camera::SetCaptureImages(start_capture::capture_images::Request& req, start_capture::capture_images::Response& res)
+{
+  capture_images_ = req.capture_images;
+
+  // clear the queues
+  std::queue<std::pair<sensor_msgs::ImagePtr, sensor_msgs::CameraInfoPtr>> empty_image_queue;
+  std::swap(image_queue, empty_image_queue);
+  std::queue<std_msgs::TimeConstPtr> empty_timestamp_queue;
+  std::swap(timestamp_queue, empty_timestamp_queue); 
+  ROS_INFO("Start Capturing!");
+  if (image_queue.empty() && timestamp_queue.empty()){
+    ROS_INFO("Queues are empty!");
+  }else{
+    ROS_INFO("Queues not empty! :(");
+  }
+
+  res.success = true;
+  return true;
+}
+
+void V4L2Camera::consumeTimestamp(const std_msgs::Time::ConstPtr& msg)
+{
+  const std::lock_guard<std::mutex> lock(queue_mutex);
+  if(image_queue.empty()){
+    timestamp_queue.push(msg);
+  }
+  else{
+    auto img = image_queue.front();
+    image_queue.pop();
+    publishImage(img.first, img.second, msg);  
+  }
+}
+
+void V4L2Camera::consumeImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci)
+{
+  const std::lock_guard<std::mutex> lock(queue_mutex);
+  if(timestamp_queue.empty()){
+    image_queue.push(std::make_pair(img, ci));
+  }
+  else{
+    auto time = timestamp_queue.front();
+    timestamp_queue.pop();
+    publishImage(img, ci, time);
+  }
+}
+
+void V4L2Camera::publishImage(const sensor_msgs::ImagePtr img, const sensor_msgs::CameraInfoPtr ci, const std_msgs::TimeConstPtr& time)
+{
+  img->header.stamp = time->data;
+  ci->header.stamp = time->data;
+
+  if (use_image_transport_) {
+    camera_transport_pub_.publish(*img, *ci);
+  } else {
+    image_pub_.publish(*img);
+    info_pub_.publish(*ci);
+  }
+  ROS_INFO("images | timestamps: (%ld | %ld)", image_queue.size(), timestamp_queue.size());
 }
 
 void V4L2Camera::createParameters()
@@ -532,10 +577,6 @@ sensor_msgs::ImagePtr V4L2Camera::convertOnGpu(sensor_msgs::Image& img)
 }
 #endif
 
-void V4L2Camera::publishTimer(const ros::TimerEvent& event)
-{
-  this->publish_next_frame_=true;
-}
 
 bool V4L2Camera::checkCameraInfo(
   sensor_msgs::Image const & img,

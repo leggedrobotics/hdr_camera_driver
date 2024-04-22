@@ -24,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
   cv_bridge
+  start_capture
 )
 
 find_package (OpenCV 4.0.0 REQUIRED)
