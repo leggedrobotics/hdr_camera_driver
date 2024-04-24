@@ -1,7 +1,7 @@
 <launch>
-    <arg name="publish_rate" default="15" />
+    <arg name="publish_rate" default="10" />
     <arg name="video_device" default="/dev/video0" />
-    <arg name="use_v4l2_buffer_timestamps" default="true" />
+    <arg name="use_v4l2_buffer_timestamps" default="false" />
     <arg name="timestamp_offset" default="0.0" />
     <arg name="output_encoding" default="rgb8" />
     <arg name="camera_info_url" default="file://$(find v4l2_camera)/launch/camera_intrinsics.yaml" />
