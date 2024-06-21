@@ -46,13 +46,20 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
   : image_transport_(private_nh),
     node(node),
     private_nh(private_nh),
-    canceled_{false}
+    canceled_{false},
+    last_image_published_time_(ros::Time::now())
 {
   private_nh.getParam("publish_rate", publish_rate_);
   private_nh.getParam("video_device", device);
   private_nh.getParam("use_v4l2_buffer_timestamps", use_v4l2_buffer_timestamps);
   private_nh.getParam("timestamp_offset", timestamp_offset);
   private_nh.getParam("use_image_transport", use_image_transport_);
+
+  // initializations for rosnode crashing
+  private_nh.param("timeout_duration", timeout_duration_, 3.0); // default to 5 seconds if not set
+
+  // Start watchdog timer
+  watchdog_timer_ = node.createTimer(ros::Duration(1.0), &V4L2Camera::watchdogTimerCallback, this);
 
   if(std::abs(publish_rate_) < std::numeric_limits<double>::epsilon()){
     ROS_WARN("Invalid publish_rate = 0. Use default value -1 instead");
@@ -139,9 +146,31 @@ V4L2Camera::V4L2Camera(ros::NodeHandle node, ros::NodeHandle private_nh)
           image_pub_.publish(*img);
           info_pub_.publish(*ci);
         }
+
+        // Update last image published time
+        last_image_published_time_ = ros::Time::now();
       }
     }
   };
+}
+
+void V4L2Camera::watchdogTimerCallback(const ros::TimerEvent& event)
+{
+  if ((ros::Time::now() - last_image_published_time_).toSec() > timeout_duration_) {
+    ROS_ERROR("No images published for %f seconds, shutting down node", timeout_duration_);
+    canceled_.store(true);  // Ensure the capture thread is notified to stop
+    if (capture_thread_.joinable()) {
+      ROS_ERROR("Capture thread ");
+      capture_thread_.join();
+      ROS_ERROR("Capture thread ");
+    }
+    camera_->stop();
+    ros::shutdown();  // Shut down the ROS node
+    return;
+  } else {
+    // Restart the watchdog timer
+    watchdog_timer_.setPeriod(ros::Duration(timeout_duration_), true);
+  }
 }
 
 void V4L2Camera::createParameters()

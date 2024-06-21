@@ -124,6 +124,11 @@ private:
   bool publish_next_frame_;
   bool use_image_transport_;
 
+  // Parameters for checking the rosnode crashing
+  ros::Time last_image_published_time_;
+  double timeout_duration_;
+  ros::Timer watchdog_timer_;
+
 #ifdef ENABLE_CUDA
   // Memory region to communicate with GPU
   std::allocator<GPUMemoryManager> allocator_;
@@ -139,7 +144,7 @@ private:
 
   void publishTimer(const ros::TimerEvent& event);
 
-
+  void watchdogTimerCallback(const ros::TimerEvent& event); // Timer for killing cameras
   bool checkCameraInfo(
     sensor_msgs::Image const & img,
     sensor_msgs::CameraInfo const & ci);
