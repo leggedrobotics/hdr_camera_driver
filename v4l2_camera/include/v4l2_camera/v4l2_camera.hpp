@@ -118,16 +118,17 @@ private:
 
   std::map<std::string, int32_t> control_name_to_id_;
 
+  // Parameters for checking the rosnode crashing
+  ros::Time last_image_published_time_;
+  double timeout_duration_;
+  ros::Timer watchdog_timer_;
 
   ros::Timer image_pub_timer_;
 
   bool publish_next_frame_;
   bool use_image_transport_;
 
-  // Parameters for checking the rosnode crashing
-  ros::Time last_image_published_time_;
-  double timeout_duration_;
-  ros::Timer watchdog_timer_;
+
 
 #ifdef ENABLE_CUDA
   // Memory region to communicate with GPU
