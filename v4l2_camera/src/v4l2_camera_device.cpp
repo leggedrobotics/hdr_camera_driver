@@ -30,6 +30,7 @@
 #include <fstream>
 
 #include "v4l2_camera/fourcc.hpp"
+#include <poll.h>
 
 using v4l2_camera::V4l2CameraDevice;
 using sensor_msgs::Image;
@@ -223,6 +224,21 @@ sensor_msgs::ImagePtr V4l2CameraDevice::capture()
   ros::Time buf_stamp;
   buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   buf.memory = V4L2_MEMORY_MMAP;
+
+  struct pollfd fdset[1];
+  fdset[0].fd = fd_;
+  fdset[0].events = POLLIN;
+
+  // Wait for up to 1 second
+  int retval = poll(fdset, 1, 1000); // 1000 milliseconds = 1 second
+
+  if (retval == -1) {
+      ROS_ERROR("poll() failed: %s", strerror(errno));
+      return nullptr;
+  } else if (retval == 0) {
+      ROS_WARN("Timeout waiting for buffer dequeue");
+      return nullptr;
+  }
 
   // Dequeue buffer with new image
   if (-1 == ioctl(fd_, VIDIOC_DQBUF, &buf)) {
