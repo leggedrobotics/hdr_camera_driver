@@ -11,20 +11,33 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")
+
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
+
+#set(CMAKE_PREFIX_PATH /usr/include/gperftools)
+#find_package(gperftools REQUIRED)
+#target_link_libraries(v4l2_camera_node tcmalloc_and_profiler)
 
 # find dependencies
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 find_package(CUDA)
 
+set(SOURCES
+  src/v4l2_camera.cpp
+  src/v4l2_camera_device.cpp
+  src/timestamper.cpp)
+
 if (CUDA_FOUND)
-  message(STATUS "CUDA Support is enabled in ${PROJECT_NAME}")
+  message(WARNING "CUDA Support is enabled in ${PROJECT_NAME}")
   cuda_add_library(v4l2_camera
-    src/v4l2_camera.cpp
-    src/v4l2_camera_device.cpp
+    ${SOURCES}
   )
   target_compile_definitions(v4l2_camera PUBLIC
     ENABLE_CUDA
@@ -37,9 +50,10 @@ if (CUDA_FOUND)
     ${CUDA_nppisu_LIBRARY}
   )
 else()
+  message(WARNING "CUDA NOOOTT Supported")
+
   add_library(v4l2_camera
-    src/v4l2_camera.cpp
-    src/v4l2_camera_device.cpp)
+    ${SOURCES})
 endif()
 rclcpp_components_register_nodes(v4l2_camera "v4l2_camera::V4L2Camera")
 
@@ -112,3 +126,6 @@ ament_export_dependencies(
 ament_auto_package(INSTALL_TO_SHARE
   launch
 )
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME})

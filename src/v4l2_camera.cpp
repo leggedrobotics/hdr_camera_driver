@@ -35,10 +35,27 @@
 #include <nppi_color_conversion.h>
 #endif
 
+#include <chrono>
+#include <iostream>
+
 using namespace std::chrono_literals;
 
 namespace v4l2_camera
 {
+
+// Helper function to extract seconds and remaining nanoseconds
+std::string format_time(long nanos) {
+    long seconds = nanos / 1000000000;
+    long nanoseconds = nanos % 1000000000;
+    return std::to_string(seconds) + "." + std::to_string(nanoseconds) + " s";
+}
+
+// Helper function to calculate difference and format it
+std::string calculate_and_format_diff(long time1, long time2) {
+    long diff = time1 - time2;
+    return std::to_string(diff/1000000)  + " miliseconds";
+}
+
 
 V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
 : rclcpp::Node{"v4l2_camera", options},
@@ -61,13 +78,19 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
   else{
     publish_next_frame_ = true;
   }
-  const auto qos = use_sensor_data_qos ? rclcpp::SensorDataQoS() : rclcpp::QoS(10);
+  const auto qos = use_sensor_data_qos ? rclcpp::SensorDataQoS() : rclcpp::QoS(2);
 
   use_image_transport_ = declare_parameter("use_image_transport", true);
+  use_kernel_buffer_ts_ = declare_parameter("use_kernel_buffer_ts", true);
+
+  if (use_kernel_buffer_ts_){
+    auto timestamper = declare_parameter<std::string>("timestamper_kernel_path", "/sys/kernel/hdr_time_stamper/ts_buffer");
+    timestamper_.init(timestamper);
+  }
 
   if (use_image_transport_) {
     camera_transport_pub_ = image_transport::create_camera_publisher(this, "image_raw",
-                                                                    qos.get_rmw_qos_profile());
+                                                                    qos.get_rmw_qos_profile());    
   } else {
     image_pub_ = create_publisher<sensor_msgs::msg::Image>("image_raw", qos);
     info_pub_ = create_publisher<sensor_msgs::msg::CameraInfo>("camera_info", qos);
@@ -108,22 +131,53 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
     return;
   }
 
+  
+
   // Start capture thread
   capture_thread_ = std::thread{
     [this]() -> void {
+      auto start3 = std::chrono::high_resolution_clock::now();
+      rclcpp::Time previous_timestamp = rclcpp::Time(0);
+
       while (rclcpp::ok() && !canceled_.load()) {
+        
+
         RCLCPP_DEBUG(get_logger(), "Capture...");
         auto img = camera_->capture();
+
+
         if (img == nullptr) {
+          std::cout << "IMG nullptr " << std::endl;
           // Failed capturing image, assume it is temporarily and continue a bit later
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
           continue;
         }
         if(publish_next_frame_ == false){
+          std::cout << "publish_next_frame_ false " << std::endl;
           continue;
         }
+        if (use_kernel_buffer_ts_){
+          Timestamp trigger_ts = timestamper_.get_last_timestamp(img->header.stamp);
+          rclcpp::Time trigger_time = rclcpp::Time(trigger_ts.first, trigger_ts.second);
+          auto trigger_nanos = trigger_time.nanoseconds();
+          rclcpp::Time v4l2_time = rclcpp::Time(img->header.stamp.sec, img->header.stamp.nanosec);
+          auto v4l2_nanos = v4l2_time.nanoseconds();
+          auto systime_nanos = rclcpp::Clock{RCL_SYSTEM_TIME}.now().nanoseconds();
+          // Adjusted logging statements
+          RCLCPP_DEBUG(get_logger(), "trigger time: %s", format_time(trigger_nanos).c_str());
+          RCLCPP_DEBUG(get_logger(), "v4l2 time: %s", format_time(v4l2_nanos).c_str());
+          RCLCPP_DEBUG(get_logger(), "sys time: %s \n", format_time(systime_nanos).c_str());
+          
 
+          // Additional logs for differences
+          RCLCPP_DEBUG(get_logger(), "Diff trigger - v4l2: %s", calculate_and_format_diff(v4l2_nanos, trigger_nanos).c_str());
+          RCLCPP_DEBUG(get_logger(), "Diff trigger - sys: %s \n", calculate_and_format_diff(systime_nanos, trigger_nanos).c_str());
+          img->header.stamp = trigger_time;
+        } 
         auto stamp = img->header.stamp;
+
+
+
         if (img->encoding != output_encoding_) {
 #ifdef ENABLE_CUDA
           img = convertOnGpu(*img);
@@ -131,6 +185,31 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
           img = convert(*img);
 #endif
         }
+
+
+
+        // Calculate the time difference
+        auto time_diff = stamp.nanosec + stamp.sec * 1e9 - previous_timestamp.nanoseconds();
+
+        // Convert the time difference to milliseconds
+        auto time_diff_ms = time_diff / 1e6;
+
+        // Print an error if the time difference is more than 150ms
+        if (time_diff_ms > 150) {
+        std::cerr << "Error: Time difference between frames is " << time_diff_ms << "ms, which exceeds the 150ms limit." << std::endl;
+        }
+
+        // Update the previous timestamp
+        previous_timestamp = stamp;
+
+
+        auto end3 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> duration3 = end3 - start3;
+        if (duration3.count() > 180  ){
+          std::cout << "Frame skipped: " << duration3.count() << " ms" << std::endl;
+        }
+        start3 = std::chrono::high_resolution_clock::now();
+
         img->header.stamp = stamp;
         img->header.frame_id = camera_frame_id_;
 
@@ -140,7 +219,7 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
           ci->height = img->height;
           ci->width = img->width;
         }
-
+        ci->distortion_model = "plumb_bob"; // No idea if this is correct
         ci->header.stamp = stamp;
         ci->header.frame_id = camera_frame_id_;
         publish_next_frame_ = publish_rate_ < 0;
@@ -148,9 +227,12 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
         if (use_image_transport_) {
           camera_transport_pub_.publish(*img, *ci);
         } else {
-          image_pub_->publish(*img);
-          info_pub_->publish(*ci);
+          image_pub_->publish(std::move(img));
+          info_pub_->publish(std::move(ci));
         }
+
+
+        
       }
     }
   };
@@ -184,14 +266,11 @@ void V4L2Camera::createParameters()
       RCLCPP_WARN(get_logger(), "Invalid camera info URL: %s", camera_info_url.c_str());
     }
   }
-
   auto camera_frame_id_description = rcl_interfaces::msg::ParameterDescriptor{};
   camera_frame_id_description.description = "Frame id inserted in published image";
   camera_frame_id_description.read_only = true;
-  camera_frame_id_ = declare_parameter<std::string>(
-    "camera_frame_id", "camera",
-    camera_frame_id_description);
-
+  camera_frame_id_ = declare_parameter<std::string>("frame_id", "abc", camera_frame_id_description);
+  
   // Format parameters
   // Pixel format
   auto const & image_formats = camera_->getImageFormats();
@@ -288,6 +367,9 @@ void V4L2Camera::createParameters()
     auto descriptor = rcl_interfaces::msg::ParameterDescriptor{};
     descriptor.name = name;
     descriptor.description = c.name;
+    RCLCPP_ERROR_STREAM(
+        get_logger(),
+        "Param: " << name);
     switch (c.type) {
       case ControlType::INT:
         {

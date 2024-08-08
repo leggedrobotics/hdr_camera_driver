@@ -30,6 +30,7 @@
 #include <map>
 #include <vector>
 
+#include "v4l2_camera/timestamper.hpp"
 #include "v4l2_camera/visibility_control.h"
 
 #ifdef ENABLE_CUDA
@@ -92,6 +93,10 @@ public:
 private:
   using ImageSize = std::vector<int64_t>;
   using TimePerFrame = std::vector<int64_t>;
+  using Timestamp = std::pair<int, int>;
+
+  // The timestamper kernel module interface
+  Timestamper timestamper_;
 
   std::shared_ptr<V4l2CameraDevice> camera_;
 
@@ -119,6 +124,7 @@ private:
 
   bool publish_next_frame_;
   bool use_image_transport_;
+  bool use_kernel_buffer_ts_;
 
 #ifdef ENABLE_CUDA
   // Memory region to communicate with GPU

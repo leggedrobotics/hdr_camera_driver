@@ -71,6 +71,8 @@ def launch_setup(context, *args, **kwargs):
                     "camera_info_url": LaunchConfiguration("camera_info_url"),
                     "use_sensor_data_qos": LaunchConfiguration("use_sensor_data_qos"),
                     "publish_rate": LaunchConfiguration("publish_rate"),
+                    "use_image_transport": False,
+                    "image_size": [960, 640],
                 },
             ],
             extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],

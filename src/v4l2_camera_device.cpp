@@ -31,6 +31,8 @@
 
 #include "v4l2_camera/fourcc.hpp"
 
+#include <chrono>
+#include <iostream>
 using v4l2_camera::V4l2CameraDevice;
 using sensor_msgs::msg::Image;
 
@@ -265,8 +267,27 @@ Image::UniquePtr V4l2CameraDevice::capture()
   }
   else {
     buf_stamp = rclcpp::Clock{RCL_SYSTEM_TIME}.now();
+    RCLCPP_ERROR(
+      rclcpp::get_logger("v4l2_camera"),
+      "In else!");
   }
   buf_stamp = buf_stamp + timestamp_offset_;
+  // Create image object
+  auto img = std::make_unique<Image>();
+
+  // Copy over buffer data
+  auto const & buffer = buffers_[buf.index];
+  img->data.resize(cur_data_format_.imageByteSize);
+  std::copy(buffer.start, buffer.start + img->data.size(), img->data.begin());
+  
+
+  // Create image object
+  //auto img = std::make_unique<Image>();
+  // Copy over buffer data
+  //const auto& buffer = buffers_[buf.index];
+  //img->data = std::vector<uint8_t>(buffer.start, buffer.start + cur_data_format_.imageByteSize);
+    
+
 
   // Requeue buffer to be reused for new captures
   if (-1 == ioctl(fd_, VIDIOC_QBUF, &buf)) {
@@ -277,8 +298,7 @@ Image::UniquePtr V4l2CameraDevice::capture()
     return nullptr;
   }
 
-  // Create image object
-  auto img = std::make_unique<Image>();
+
   img->header.stamp = buf_stamp;
   img->width = cur_data_format_.width;
   img->height = cur_data_format_.height;
@@ -292,11 +312,8 @@ Image::UniquePtr V4l2CameraDevice::capture()
   } else {
     RCLCPP_WARN(rclcpp::get_logger("v4l2_camera"), "Current pixel format is not supported yet");
   }
-  img->data.resize(cur_data_format_.imageByteSize);
-
-  auto const & buffer = buffers_[buf.index];
-  std::copy(buffer.start, buffer.start + img->data.size(), img->data.begin());
-  return img;
+ 
+ return img;
 }
 
 int32_t V4l2CameraDevice::getControlValue(uint32_t id)
@@ -352,6 +369,10 @@ bool V4l2CameraDevice::requestDataFormat(const PixelFormat & format)
       std::to_string(errno).c_str());
     return false;
   }
+
+  listImageFormats();
+  listImageSizes();
+  
 
   RCLCPP_INFO(rclcpp::get_logger("v4l2_camera"), "Success");
   cur_data_format_ = PixelFormat{formatReq.fmt.pix};
@@ -419,18 +440,30 @@ void V4l2CameraDevice::listImageFormats()
   struct v4l2_fmtdesc fmtDesc;
   fmtDesc.index = 0;
   fmtDesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  RCLCPP_INFO(
+    rclcpp::get_logger("v4l2_camera"),
+    "Listing image formats");
   while (ioctl(fd_, VIDIOC_ENUM_FMT, &fmtDesc) == 0) {
     image_formats_.emplace_back(fmtDesc);
     fmtDesc.index++;
   }
+  RCLCPP_INFO(
+    rclcpp::get_logger("v4l2_camera"),
+    "Formats: %s", std::to_string(image_formats_.size()).c_str());
 }
 
 void V4l2CameraDevice::listImageSizes()
 {
+  RCLCPP_INFO(
+    rclcpp::get_logger("v4l2_camera"),
+    "Listing image sizes");
   image_sizes_.clear();
   struct v4l2_frmsizeenum frmSizeEnum;
   // Supported sizes can be different per format
   for (auto const & f : image_formats_) {
+      RCLCPP_INFO(
+    rclcpp::get_logger("v4l2_camera"),
+    "Found a format");
     frmSizeEnum.index = 0;
     frmSizeEnum.pixel_format = f.pixelFormat;
 
@@ -466,6 +499,10 @@ V4l2CameraDevice::ImageSizesDescription V4l2CameraDevice::listDiscreteImageSizes
   auto sizes = ImageSizesVector{};
 
   do {
+    // Print the width heigh pair:
+    RCLCPP_INFO(
+      rclcpp::get_logger("v4l2_camera"),
+      "Width/Heigh option:  %dx%d", frm_size_enum.discrete.width, frm_size_enum.discrete.height);
     sizes.emplace_back(std::make_pair(frm_size_enum.discrete.width, frm_size_enum.discrete.height));
     frm_size_enum.index++;
   } while (ioctl(fd_, VIDIOC_ENUM_FRAMESIZES, &frm_size_enum) == 0);

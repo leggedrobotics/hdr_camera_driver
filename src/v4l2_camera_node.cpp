@@ -15,14 +15,20 @@
 #include "v4l2_camera/v4l2_camera.hpp"
 
 #include <memory>
+// #include <gperftools/profiler.h>
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
 
+  // Start the profiler and specify the output file
+  // ProfilerStart("/data/profile.prof");
+
   auto node = std::make_shared<v4l2_camera::V4L2Camera>(rclcpp::NodeOptions{});
 
   rclcpp::spin(node);
+  // Stop the profiler
+  // ProfilerStop();
   rclcpp::shutdown();
   node = nullptr;
 
