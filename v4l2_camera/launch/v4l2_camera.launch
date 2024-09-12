@@ -7,6 +7,10 @@
     <arg name="camera_info_url" default="file://$(find v4l2_camera)/launch/camera_intrinsics.yaml" />
     <arg name="camera_frame_id" default="hdr_cam" />
     <arg name="pixel_format" default="YUYV" />
+    <arg name="rotate_image" default="false" />
+
+    <!-- if rotate_image="true", but calibration was performed with rotate_image="false" -->
+    <arg name="rotate_calibration" default="false" />
 
     <node pkg="v4l2_camera" type="v4l2_camera_node" name="v4l2_camera" output="screen">
         <param name="publish_rate" value="$(arg publish_rate)" />
@@ -17,5 +21,7 @@
         <param name="camera_info_url" value="$(arg camera_info_url)" />
         <param name="camera_frame_id" value="$(arg camera_frame_id)" />
         <param name="pixel_format" value="$(arg pixel_format)" />
+        <param name="rotate_image" value="$(arg rotate_image)" />
+        <param name="rotate_calibration" value="$(arg rotate_calibration)" />
     </node>
 </launch>
