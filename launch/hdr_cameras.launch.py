@@ -28,8 +28,8 @@ def launch_setup(context, *args, **kwargs):
                     ("camera_info", f"{config['name']}/camera_info"),
                 ],
                 parameters=[{
-                    "video_device": "a", #config["video_device"],
-                    "frame_id": "b", #config["frame_id"],
+                    "video_device": config["video_device"],
+                    "frame_id": config["frame_id"],
                     "image_size": (1920, 1080),
                 }],
                 extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],

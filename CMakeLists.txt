@@ -35,7 +35,6 @@ set(SOURCES
   src/timestamper.cpp)
 
 if (CUDA_FOUND)
-  message(WARNING "CUDA Support is enabled in ${PROJECT_NAME}")
   cuda_add_library(v4l2_camera
     ${SOURCES}
   )
