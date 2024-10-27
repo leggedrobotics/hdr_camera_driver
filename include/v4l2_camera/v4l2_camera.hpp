@@ -32,6 +32,7 @@
 
 #include "v4l2_camera/timestamper.hpp"
 #include "v4l2_camera/visibility_control.h"
+#include "sensor_msgs/msg/time_reference.hpp"
 
 #ifdef ENABLE_CUDA
 #include <nppdefs.h>
@@ -107,6 +108,10 @@ private:
   // Publisher used for inter process comm
   image_transport::CameraPublisher camera_transport_pub_;
 
+  // Publisher for timestamps
+  rclcpp::Publisher<sensor_msgs::msg::TimeReference>::SharedPtr kernel_timestamp_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::TimeReference>::SharedPtr v4l2_timestamp_pub_;
+
   std::shared_ptr<camera_info_manager::CameraInfoManager> cinfo_;
 
   std::thread capture_thread_;
@@ -125,6 +130,10 @@ private:
   bool publish_next_frame_;
   bool use_image_transport_;
   bool use_kernel_buffer_ts_;
+  bool publish_kernel_ts_;
+  bool publish_v4l2_ts_;
+
+  rclcpp::Time last_timestamp_published_;
 
 #ifdef ENABLE_CUDA
   // Memory region to communicate with GPU

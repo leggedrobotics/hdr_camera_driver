@@ -13,6 +13,7 @@ class Timestamper
     Timestamper() = default;
     void init(std::string const& ts_buffer_fn);
     Timestamp get_last_timestamp(const rclcpp::Time& buffer_time) const;
+    std::vector<rclcpp::Time> get_timestamps_since_last_published(rclcpp::Time const& last_published);
 
   private:
     std::string _ts_buffer_fn;

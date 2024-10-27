@@ -17,6 +17,18 @@ std::vector<Timestamp> read_timestamps(std::string const& timestamps_fn)
   return ret;
 }
 
+std::vector<rclcpp::Time> Timestamper::get_timestamps_since_last_published(rclcpp::Time const& last_published){
+  auto const& tss = read_timestamps(_ts_buffer_fn);
+  std::vector<rclcpp::Time> ret {};
+  for (auto const& ts : tss){
+    rclcpp::Time time = rclcpp::Time(ts.first, ts.second);
+    if (time > last_published){
+      ret.push_back(time);
+    }
+  }
+  return ret;
+}
+
 void Timestamper::init(std::string const& ts_buffer_fn)
 {
   _ts_buffer_fn = ts_buffer_fn;
