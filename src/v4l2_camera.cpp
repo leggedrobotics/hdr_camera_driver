@@ -59,7 +59,8 @@ std::string calculate_and_format_diff(long time1, long time2) {
 
 V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
 : rclcpp::Node{"v4l2_camera", options},
-  canceled_{false}
+  canceled_{false},
+  last_timestamp_published_{rclcpp::Time(0)}
 {
   // Prepare publisher
   // This should happen before registering on_set_parameters_callback,
@@ -82,11 +83,19 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
 
   use_image_transport_ = declare_parameter("use_image_transport", true);
   use_kernel_buffer_ts_ = declare_parameter("use_kernel_buffer_ts", true);
+  publish_kernel_ts_ = declare_parameter("publish_kernel_ts", true);
+  publish_v4l2_ts_ = declare_parameter("publish_v4l2_ts", true);
 
-  if (use_kernel_buffer_ts_){
+  if (use_kernel_buffer_ts_ || publish_kernel_ts_) {
     auto timestamper = declare_parameter<std::string>("timestamper_kernel_path", "/sys/kernel/hdr_time_stamper/ts_buffer");
     timestamper_.init(timestamper);
   }
+
+  // Log the values of the parameters
+  RCLCPP_INFO(get_logger(), "use_image_transport: %s", use_image_transport_ ? "true" : "false");
+  RCLCPP_INFO(get_logger(), "use_kernel_buffer_ts: %s", use_kernel_buffer_ts_ ? "true" : "false");
+  RCLCPP_INFO(get_logger(), "publish_kernel_ts: %s", publish_kernel_ts_ ? "true" : "false");
+  RCLCPP_INFO(get_logger(), "publish_v4l2_ts: %s", publish_v4l2_ts_ ? "true" : "false");
 
   if (use_image_transport_) {
     camera_transport_pub_ = image_transport::create_camera_publisher(this, "image_raw",
@@ -95,6 +104,8 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
     image_pub_ = create_publisher<sensor_msgs::msg::Image>("image_raw", qos);
     info_pub_ = create_publisher<sensor_msgs::msg::CameraInfo>("camera_info", qos);
   }
+  kernel_timestamp_pub_ = create_publisher<sensor_msgs::msg::TimeReference>("kernel_timestamp", qos);
+  v4l2_timestamp_pub_ = create_publisher<sensor_msgs::msg::TimeReference>("v4l2_timestamp", qos);
 
   // Prepare camera
   auto device_descriptor = rcl_interfaces::msg::ParameterDescriptor{};
@@ -156,6 +167,9 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
           std::cout << "publish_next_frame_ false " << std::endl;
           continue;
         }
+        // Store the v4l2 timestamp for publishing.
+        auto v4l2_ts = img->header.stamp;
+
         if (use_kernel_buffer_ts_){
           Timestamp trigger_ts = timestamper_.get_last_timestamp(img->header.stamp);
           rclcpp::Time trigger_time = rclcpp::Time(trigger_ts.first, trigger_ts.second);
@@ -174,6 +188,7 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
           RCLCPP_DEBUG(get_logger(), "Diff trigger - sys: %s \n", calculate_and_format_diff(systime_nanos, trigger_nanos).c_str());
           img->header.stamp = trigger_time;
         } 
+        
         auto stamp = img->header.stamp;
 
 
@@ -229,6 +244,24 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
         } else {
           image_pub_->publish(std::move(img));
           info_pub_->publish(std::move(ci));
+        }
+
+        // Publish timestamps for post-processing
+        if (publish_kernel_ts_) {
+          auto new_timestamps = timestamper_.get_timestamps_since_last_published(last_timestamp_published_);
+          for (const auto& ts : new_timestamps) {
+            sensor_msgs::msg::TimeReference time_ref;
+            time_ref.time_ref = ts;
+            kernel_timestamp_pub_->publish(time_ref);
+            if (ts > last_timestamp_published_) {
+              last_timestamp_published_ = ts;
+            }
+          }
+        }
+        if (publish_v4l2_ts_) {
+          sensor_msgs::msg::TimeReference time_ref;
+          time_ref.time_ref = rclcpp::Time(v4l2_ts.sec, v4l2_ts.nanosec);
+          v4l2_timestamp_pub_->publish(time_ref);
         }
 
 
@@ -622,7 +655,7 @@ static void uyvy2rgb(unsigned char const * YUV, unsigned char * RGB, int NumPixe
 
 sensor_msgs::msg::Image::UniquePtr V4L2Camera::convert(sensor_msgs::msg::Image const & img) const
 {
-  RCLCPP_DEBUG(
+  RCLCPP_INFO(
     get_logger(),
     "Converting: %s -> %s", img.encoding.c_str(), output_encoding_.c_str());
 
