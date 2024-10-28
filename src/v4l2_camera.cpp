@@ -91,6 +91,12 @@ V4L2Camera::V4L2Camera(rclcpp::NodeOptions const & options)
     timestamper_.init(timestamper);
   }
 
+  // Log the values of the parameters
+  RCLCPP_INFO(get_logger(), "use_image_transport: %s", use_image_transport_ ? "true" : "false");
+  RCLCPP_INFO(get_logger(), "use_kernel_buffer_ts: %s", use_kernel_buffer_ts_ ? "true" : "false");
+  RCLCPP_INFO(get_logger(), "publish_kernel_ts: %s", publish_kernel_ts_ ? "true" : "false");
+  RCLCPP_INFO(get_logger(), "publish_v4l2_ts: %s", publish_v4l2_ts_ ? "true" : "false");
+
   if (use_image_transport_) {
     camera_transport_pub_ = image_transport::create_camera_publisher(this, "image_raw",
                                                                     qos.get_rmw_qos_profile());    
